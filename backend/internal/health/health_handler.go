@@ -6,14 +6,20 @@ import (
 )
 
 type HealthHandler struct {
+	service *HealthService
 }
 
-func NewHealthHandler() *HealthHandler {
-	return &HealthHandler{}
+func NewHealthHandler(service *HealthService) *HealthHandler {
+	return &HealthHandler{
+		service: service,
+	}
 }
 
-func (h *HealthHandler) Alive(c *gin.Context) {
-	common.Ok(c, AliveResponse{
-		Status: "ok",
-	})
+func (hh *HealthHandler) Alive(c *gin.Context) {
+	common.Ok(c, AliveResponse{Status: "ok"})
+}
+
+func (hh *HealthHandler) Ready(c *gin.Context) {
+	readinesResponse := hh.service.Ready(c.Request.Context())
+	common.Ok(c, readinesResponse)
 }
