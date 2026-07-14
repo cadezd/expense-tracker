@@ -8,9 +8,9 @@ import (
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, user User) (User, error)
-	Update(ctx context.Context, user User) (User, error)
-	GetByID(ctx context.Context, userID uuid.UUID) (User, error)
-	List(ctx context.Context, offset, limit int) ([]User, error)
+	Create(ctx context.Context, user *User) (*User, error)
+	Update(ctx context.Context, user *User) (*User, error)
+	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
+	List(ctx context.Context, offset, limit int) ([]*User, error)
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
