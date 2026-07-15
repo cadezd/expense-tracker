@@ -9,10 +9,10 @@ import (
 type Status string
 
 const (
-	StatusUploaded   = "uploaded"
-	StatusProcessing = "processing"
-	StatusProcessed  = "processed"
-	StatusFailed     = "failed"
+	StatusUploaded   Status = "uploaded"
+	StatusProcessing Status = "processing"
+	StatusProcessed  Status = "processed"
+	StatusFailed     Status = "failed"
 )
 
 type Receipt struct {
