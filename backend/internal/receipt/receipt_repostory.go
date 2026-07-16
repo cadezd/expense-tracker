@@ -39,9 +39,7 @@ func (rr *PostgresReceiptRepository) Create(
 		RETURNING id, status, created_at, updated_at, object_version;
 	`
 
-	err := rr.db.QueryRow(
-		ctx,
-		sqlQuery,
+	err := rr.db.QueryRow(ctx, sqlQuery,
 		receipt.UserID,
 		receipt.OriginalFilename,
 		receipt.StoredFilename,
@@ -86,9 +84,7 @@ func (rr *PostgresReceiptRepository) Update(
 			object_version;
 	`
 
-	err := rr.db.QueryRow(
-		ctx,
-		sqlQuery,
+	err := rr.db.QueryRow(ctx, sqlQuery,
 		receipt.OriginalFilename,
 		receipt.StoredFilename,
 		receipt.StoragePath,
@@ -138,9 +134,7 @@ func (rr *PostgresReceiptRepository) GetByID(
 			id = $2;
 	`
 
-	err := rr.db.QueryRow(
-		ctx,
-		sqlQuery,
+	err := rr.db.QueryRow(ctx, sqlQuery,
 		userID,
 		receiptID,
 	).Scan(
@@ -160,7 +154,7 @@ func (rr *PostgresReceiptRepository) GetByID(
 		return nil, common.ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get by id error: %w", err)
+		return nil, fmt.Errorf("get receipt by id error: %w", err)
 	}
 
 	return receipt, nil
@@ -193,9 +187,7 @@ func (rr *PostgresReceiptRepository) List(
 		OFFSET $3;
 	`
 
-	rows, err := rr.db.Query(
-		ctx,
-		sqlQuery,
+	rows, err := rr.db.Query(ctx, sqlQuery,
 		userID,
 		limit,
 		offset,
@@ -248,9 +240,7 @@ func (rr *PostgresReceiptRepository) Delete(
 			id = $2;
 	`
 
-	_, err := rr.db.Exec(
-		ctx,
-		sqlQuery,
+	_, err := rr.db.Exec(ctx, sqlQuery,
 		userID,
 		receiptID,
 	)
