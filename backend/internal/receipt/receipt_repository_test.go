@@ -49,8 +49,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	testPool.Close()
-	_ = postgresContainer.Terminate(ctx)
-
+	postgresContainer.Terminate(ctx)
 	os.Exit(code)
 }
 
@@ -225,8 +224,9 @@ func TestPostgresReceiptRepository_List(t *testing.T) {
 		StoragePath:      "/uploads/a-stored.jpeg",
 		MimeType:         "image/jpeg",
 		FileSize:         ptr(int64(100)),
+		CreatedAt:        older,
 	}
-	insertReceiptAt(t, ctx, testPool, receiptA, older)
+	insertReceipt(t, ctx, testPool, receiptA)
 
 	receiptB := &Receipt{
 		UserID:           targetUser.ID,
@@ -235,8 +235,9 @@ func TestPostgresReceiptRepository_List(t *testing.T) {
 		StoragePath:      "/uploads/b-stored.jpeg",
 		MimeType:         "image/jpeg",
 		FileSize:         ptr(int64(200)),
+		CreatedAt:        middle,
 	}
-	insertReceiptAt(t, ctx, testPool, receiptB, middle)
+	insertReceipt(t, ctx, testPool, receiptB)
 
 	receiptC := &Receipt{
 		UserID:           targetUser.ID,
@@ -245,8 +246,9 @@ func TestPostgresReceiptRepository_List(t *testing.T) {
 		StoragePath:      "/uploads/c-stored.jpeg",
 		MimeType:         "image/jpeg",
 		FileSize:         ptr(int64(300)),
+		CreatedAt:        newer,
 	}
-	insertReceiptAt(t, ctx, testPool, receiptC, newer)
+	insertReceipt(t, ctx, testPool, receiptC)
 
 	otherReceipt := &Receipt{
 		UserID:           otherUser.ID,
@@ -255,8 +257,9 @@ func TestPostgresReceiptRepository_List(t *testing.T) {
 		StoragePath:      "/uploads/other-stored.jpeg",
 		MimeType:         "image/jpeg",
 		FileSize:         ptr(int64(400)),
+		CreatedAt:        otherTime,
 	}
-	insertReceiptAt(t, ctx, testPool, otherReceipt, otherTime)
+	insertReceipt(t, ctx, testPool, otherReceipt)
 
 	receipts, err := repo.List(ctx, targetUser.ID, 1, 2)
 	r.NoError(err)
@@ -311,147 +314,4 @@ func TestPostgresReceiptRepository_Delete_NotFound(t *testing.T) {
 	repo := NewPostgresReceiptRepository(testPool)
 	err := repo.Delete(ctx, uuid.New(), uuid.New())
 	r.NoError(err)
-}
-
-// --------------------
-//  Helpers
-// --------------------
-
-func resetDB(t *testing.T, ctx context.Context, db *pgxpool.Pool) {
-	t.Helper()
-
-	_, err := db.Exec(ctx, "TRUNCATE TABLE transactions, receipts, users RESTART IDENTITY CASCADE;")
-	require.NoError(t, err)
-}
-
-func seedUser(t *testing.T, ctx context.Context, db *pgxpool.Pool, user *user.User) {
-	t.Helper()
-
-	err := db.QueryRow(ctx,
-		`INSERT INTO users (email)
-		VALUES ($1)
-		RETURNING id, created_at, updated_at, object_version;`,
-		user.Email,
-	).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&user.ObjectVersion,
-	)
-	require.NoError(t, err)
-}
-
-func insertReceipt(t *testing.T, ctx context.Context, db *pgxpool.Pool, receipt *Receipt) {
-	t.Helper()
-
-	err := db.QueryRow(ctx,
-		`INSERT INTO receipts (
-			user_id,
-			original_filename,
-			stored_filename,
-			storage_path,
-			mime_type,
-			file_size
-		)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at, updated_at, object_version;`,
-		receipt.UserID,
-		receipt.OriginalFilename,
-		receipt.StoredFilename,
-		receipt.StoragePath,
-		receipt.MimeType,
-		receipt.FileSize,
-	).Scan(
-		&receipt.ID,
-		&receipt.CreatedAt,
-		&receipt.UpdatedAt,
-		&receipt.ObjectVersion,
-	)
-	require.NoError(t, err)
-}
-
-func insertReceiptAt(t *testing.T, ctx context.Context, db *pgxpool.Pool, receipt *Receipt, createdAt time.Time) {
-	t.Helper()
-
-	if receipt.Status == "" {
-		receipt.Status = StatusUploaded
-	}
-	if receipt.UpdatedAt.IsZero() {
-		receipt.UpdatedAt = createdAt
-	}
-
-	err := db.QueryRow(ctx,
-		`INSERT INTO receipts (
-			user_id,
-			original_filename,
-			stored_filename,
-			storage_path,
-			mime_type,
-			file_size,
-			status,
-			created_at,
-			updated_at,
-			object_version
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id;`,
-		receipt.UserID,
-		receipt.OriginalFilename,
-		receipt.StoredFilename,
-		receipt.StoragePath,
-		receipt.MimeType,
-		receipt.FileSize,
-		receipt.Status,
-		createdAt,
-		receipt.UpdatedAt,
-		int64(1),
-	).Scan(&receipt.ID)
-	require.NoError(t, err)
-	receipt.CreatedAt = createdAt
-	receipt.ObjectVersion = 1
-}
-
-func getReceiptByID(t *testing.T, ctx context.Context, db *pgxpool.Pool, userID, receiptID uuid.UUID) (*Receipt, error) {
-	t.Helper()
-
-	receipt := &Receipt{}
-	var fileSize int64
-
-	err := db.QueryRow(ctx,
-		`SELECT
-			id,
-			user_id,
-			original_filename,
-			stored_filename,
-			storage_path,
-			mime_type,
-			file_size,
-			status,
-			created_at,
-			updated_at,
-			object_version
-		FROM receipts
-		WHERE user_id = $1 AND id = $2;`,
-		userID,
-		receiptID,
-	).Scan(
-		&receipt.ID,
-		&receipt.UserID,
-		&receipt.OriginalFilename,
-		&receipt.StoredFilename,
-		&receipt.StoragePath,
-		&receipt.MimeType,
-		&fileSize,
-		&receipt.Status,
-		&receipt.CreatedAt,
-		&receipt.UpdatedAt,
-		&receipt.ObjectVersion,
-	)
-
-	receipt.FileSize = &fileSize
-	return receipt, err
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
