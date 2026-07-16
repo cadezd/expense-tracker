@@ -2,17 +2,19 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, user *User) (*User, error)
-	Update(ctx context.Context, user *User) (*User, error)
+	Create(ctx context.Context, user *User) error
+	Update(ctx context.Context, user *User) error
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
-	List(ctx context.Context, offset, limit int) ([]*User, error)
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
 
@@ -29,35 +31,97 @@ func NewPostgresUserRepository(db *pgxpool.Pool) *PostgresUserRepository {
 func (ur *PostgresUserRepository) Create(
 	ctx context.Context,
 	user *User,
-) (*User, error) {
-	return nil, fmt.Errorf("Not implemented")
+) error {
+	query := `
+		INSERT INTO users (email)
+		VALUES ($1)
+		RETURNING id, created_at, updated_at, object_version;
+	`
+
+	err := ur.db.QueryRow(ctx, query, user.Email).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.ObjectVersion,
+	)
+	if err != nil {
+		return fmt.Errorf("create user error: %w", err)
+	}
+
+	return nil
 }
 
 func (ur *PostgresUserRepository) Update(
 	ctx context.Context,
 	user *User,
-) (*User, error) {
-	return nil, fmt.Errorf("Not implemented")
+) error {
+	query := `
+		UPDATE users
+		SET
+			email = $1,
+			updated_at = NOW(),
+			object_version = object_version + 1
+		WHERE
+			id = $2 AND
+			object_version = $3
+		RETURNING updated_at, object_version;
+	`
+
+	err := ur.db.QueryRow(ctx, query,
+		user.Email,
+		user.ID,
+		user.ObjectVersion,
+	).Scan(
+		&user.UpdatedAt,
+		&user.ObjectVersion,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return common.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("update user error: %w", err)
+	}
+
+	return nil
 }
 
 func (ur *PostgresUserRepository) GetByID(
 	ctx context.Context,
 	userID uuid.UUID,
 ) (*User, error) {
-	return nil, fmt.Errorf("Not implemented")
-}
+	user := &User{}
 
-func (ur *PostgresUserRepository) List(
-	ctx context.Context,
-	offset int,
-	limit int,
-) ([]*User, error) {
-	return nil, fmt.Errorf("Not implemented")
+	query := `
+		SELECT id, email, created_at, updated_at, object_version
+		FROM users
+		WHERE id = $1;
+	`
+
+	err := ur.db.QueryRow(ctx, query, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+		&user.ObjectVersion,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, common.ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get user by id error: %w", err)
+	}
+
+	return user, nil
 }
 
 func (ur *PostgresUserRepository) Delete(
 	ctx context.Context,
 	userID uuid.UUID,
 ) error {
-	return fmt.Errorf("Not implemented")
+	_, err := ur.db.Exec(ctx, `DELETE FROM users WHERE id = $1;`, userID)
+	if err != nil {
+		return fmt.Errorf("delete user error: %w", err)
+	}
+
+	return nil
 }
