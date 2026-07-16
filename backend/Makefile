@@ -4,6 +4,9 @@ run:
 vet:
 	go vet ./...
 
+test:
+	go test ./...
+
 db-up:
 	docker compose up -d postgres
 
