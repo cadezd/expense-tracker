@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/cadezd/expense-tracker/internal/user"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -191,7 +190,7 @@ func TestTransactionRepository_Update_NotFound(t *testing.T) {
 	}
 
 	err := repo.Update(ctx, txn)
-	r.ErrorIs(err, common.ErrNotFound)
+	r.ErrorIs(err, ErrNotFound)
 }
 
 func TestTransactionRepository_GetByID(t *testing.T) {
@@ -244,7 +243,7 @@ func TestTransactionRepository_GetByID_NotFound(t *testing.T) {
 
 	repo := NewPostgresTransactionRepository(testPool)
 	txn, err := repo.GetByID(ctx, uuid.New(), uuid.New())
-	r.ErrorIs(err, common.ErrNotFound)
+	r.ErrorIs(err, ErrNotFound)
 	r.Nil(txn)
 }
 

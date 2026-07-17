@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,7 +120,7 @@ func TestPostgresUserRepository_Update_NotFound(t *testing.T) {
 	}
 
 	err := repo.Update(ctx, testUser)
-	r.ErrorIs(err, common.ErrNotFound)
+	r.ErrorIs(err, ErrNotFound)
 }
 
 func TestPostgresUserRepository_GetByID(t *testing.T) {
@@ -151,7 +150,7 @@ func TestPostgresUserRepository_GetByID_NotFound(t *testing.T) {
 
 	repo := NewPostgresUserRepository(testPool)
 	user, err := repo.GetByID(ctx, uuid.New())
-	r.ErrorIs(err, common.ErrNotFound)
+	r.ErrorIs(err, ErrNotFound)
 	r.Nil(user)
 }
 

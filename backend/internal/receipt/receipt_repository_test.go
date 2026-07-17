@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/cadezd/expense-tracker/internal/user"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -194,7 +193,7 @@ func TestPostgresReceiptRepository_GetByID_NotFound(t *testing.T) {
 
 	repo := NewPostgresReceiptRepository(testPool)
 	receipt, err := repo.GetByID(ctx, uuid.New(), uuid.New())
-	r.ErrorIs(err, common.ErrNotFound)
+	r.ErrorIs(err, ErrNotFound)
 	r.Nil(receipt)
 }
 
