@@ -41,14 +41,14 @@ func (ls *LocalStorage) Save(
 	buff := make([]byte, 512)
 
 	n, err := reader.Read(buff)
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("read file header: %w", err)
+	}
 	if n == 0 {
 		return nil, ErrEmptyFile
 	}
-	if err != nil {
-		return nil, fmt.Errorf("read file header: %w", err)
-	}
 
-	mimeType := http.DetectContentType(buff)
+	mimeType := http.DetectContentType(buff[:n])
 	extension, ok := ls.allowedMIMETypes[mimeType]
 	if !ok {
 		return nil, ErrUnsupportedMIMEType
