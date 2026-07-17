@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrNotFound = errors.New("transaction not found")
 )
 
 type TransactionRepository interface {
@@ -105,7 +108,7 @@ func (tr *PostgresTransactionRepository) Update(
 		&transaction.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return common.ErrNotFound
+		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("update transaction error: %w", err)
@@ -162,7 +165,7 @@ func (tr *PostgresTransactionRepository) GetByID(
 		&transaction.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, common.ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get transaction by id error: %w", err)

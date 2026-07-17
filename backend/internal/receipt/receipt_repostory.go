@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrNotFound = errors.New("receipt not found")
 )
 
 type ReceiptRepository interface {
@@ -99,7 +102,7 @@ func (rr *PostgresReceiptRepository) Update(
 		&receipt.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return common.ErrNotFound
+		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("update receipt error: %w", err)
@@ -151,7 +154,7 @@ func (rr *PostgresReceiptRepository) GetByID(
 		&receipt.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, common.ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get receipt by id error: %w", err)

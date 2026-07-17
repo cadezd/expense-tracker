@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrNotFound = errors.New("user not found")
 )
 
 type UserRepository interface {
@@ -76,7 +79,7 @@ func (ur *PostgresUserRepository) Update(
 		&user.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return common.ErrNotFound
+		return ErrNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("update user error: %w", err)
@@ -105,7 +108,7 @@ func (ur *PostgresUserRepository) GetByID(
 		&user.ObjectVersion,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, common.ErrNotFound
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get user by id error: %w", err)
