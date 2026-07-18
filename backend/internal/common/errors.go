@@ -17,10 +17,21 @@ func (e *AppError) Error() string {
 	return e.Message
 }
 
+func NewAppError(status int, code, msg string) *AppError {
+	return &AppError{Status: status, Code: code, Message: msg}
+}
+
+func NewBadRequestError(code, msg string) *AppError {
+	return &AppError{Status: http.StatusBadRequest, Code: code, Message: msg}
+}
+
+func NewInternalServerError(code, msg string) *AppError {
+	return &AppError{Status: http.StatusInternalServerError, Code: code, Message: msg}
+}
+
 var (
 	ErrNotFound     = &AppError{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "resource not found"}
 	ErrUnauthorized = &AppError{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "authentication required"}
-	ErrBadRequest   = &AppError{Status: http.StatusBadRequest, Code: "BAD_REQUEST", Message: "invalid request"}
 	InternalError   = &AppError{Status: http.StatusInternalServerError, Code: "INTERNAL_SERVER_ERROR", Message: "unexpected error occoured"}
 )
 
