@@ -1,4 +1,4 @@
 .env
-.vscode/*
-.test/*
-.data/*
+vscode/*
+test/*
+data/*
