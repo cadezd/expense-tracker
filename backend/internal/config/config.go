@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/google/uuid"
 )
 
 type Config struct {
@@ -11,6 +13,7 @@ type Config struct {
 	DatabseURL               string
 	UploadDirectory          string
 	MaxFileUploadSizeInBytes int64
+	TestUserID               uuid.UUID
 }
 
 func Load() (Config, error) {
@@ -19,11 +22,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
 	}
 
+	testUserID, err := uuid.Parse(getEnv("TEST_USER_ID", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid TEST_USER_ID")
+	}
+
 	return Config{
 		AppPort:                  getEnv("APP_PORT", "8080"),
 		DatabseURL:               databaseURL,
 		UploadDirectory:          getEnv("UPLOAD_DIR", "./data/"),
 		MaxFileUploadSizeInBytes: getEnvInt64("MAX_UPLOAD_SIZE_BYTES", 10*1024*1024),
+		TestUserID:               testUserID,
 	}, nil
 }
 
