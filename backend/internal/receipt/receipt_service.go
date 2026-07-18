@@ -3,10 +3,9 @@ package receipt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
-	"net/http"
 
-	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/cadezd/expense-tracker/internal/storage"
 	"github.com/google/uuid"
 )
@@ -29,17 +28,15 @@ func (rs *ReceiptService) Upload(
 	originalFilename string,
 	reader io.Reader,
 ) (*Receipt, error) {
-	// Save to disk
 	storedFileMeta, err := rs.storage.Save(
 		ctx,
 		originalFilename,
 		reader,
 	)
 	if err != nil {
-		return nil, mapToAppError(err)
+		return nil, fmt.Errorf("save receipt file: %w", err)
 	}
 
-	// Save to db
 	receipt := &Receipt{
 		UserID:           userID,
 		OriginalFilename: originalFilename,
@@ -54,8 +51,15 @@ func (rs *ReceiptService) Upload(
 		receipt,
 	)
 	if err != nil {
-		_ = rs.storage.Delete(ctx, storedFileMeta.RelativePath)
-		return nil, mapToAppError(err)
+		cleanupErr := rs.storage.Delete(ctx, storedFileMeta.RelativePath)
+		if cleanupErr != nil {
+			return nil, errors.Join(
+				fmt.Errorf("create receipt record: %w", err),
+				fmt.Errorf("cleanup stored receipt file %q: %w", storedFileMeta.RelativePath, cleanupErr),
+			)
+		}
+
+		return nil, fmt.Errorf("create receipt record: %w", err)
 	}
 
 	return receipt, nil
@@ -72,7 +76,7 @@ func (rs *ReceiptService) GetByID(
 		receiptID,
 	)
 	if err != nil {
-		return nil, mapToAppError(err)
+		return nil, fmt.Errorf("get receipt by id: %w", err)
 	}
 
 	return receipt, nil
@@ -84,18 +88,6 @@ func (rs *ReceiptService) List(
 	offset int,
 	limit int,
 ) ([]*Receipt, error) {
-	if offset < 0 {
-		return nil, common.NewBadRequestError("INVALID_VALUE", "offset must be greather than 0")
-	}
-
-	if limit < 0 {
-		return nil, common.NewBadRequestError("INVALID_VALUE", "limit must be netween 0 and 100")
-	}
-
-	if limit > 100 {
-		return nil, common.NewBadRequestError("INVALID_VALUE", "limit must be netween 0 and 100")
-	}
-
 	receipts, err := rs.repository.List(
 		ctx,
 		userID,
@@ -103,7 +95,7 @@ func (rs *ReceiptService) List(
 		limit,
 	)
 	if err != nil {
-		return nil, mapToAppError(err)
+		return nil, fmt.Errorf("list receipts: %w", err)
 	}
 
 	return receipts, nil
@@ -120,7 +112,7 @@ func (rs *ReceiptService) Delete(
 		receiptID,
 	)
 	if err != nil {
-		return mapToAppError(err)
+		return fmt.Errorf("load receipt for delete: %w", err)
 	}
 
 	err = rs.storage.Delete(
@@ -128,7 +120,7 @@ func (rs *ReceiptService) Delete(
 		receipt.StoragePath,
 	)
 	if err != nil {
-		return mapToAppError(err)
+		return fmt.Errorf("delete stored receipt file %q: %w", receipt.StoragePath, err)
 	}
 
 	err = rs.repository.Delete(
@@ -137,29 +129,8 @@ func (rs *ReceiptService) Delete(
 		receiptID,
 	)
 	if err != nil {
-		return mapToAppError(err)
+		return fmt.Errorf("delete receipt record: %w", err)
 	}
 
 	return nil
-}
-
-// -------------------
-// HELPERS
-// -------------------
-
-func mapToAppError(err error) error {
-	switch {
-	case errors.Is(err, ErrNotFound):
-		return common.ErrNotFound
-	case errors.Is(err, storage.ErrFileTooLarge):
-		return common.NewAppError(http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "file is too large")
-	case errors.Is(err, storage.ErrUnsupportedMIMEType):
-		return common.NewAppError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MIME_TYPE", "unsupported file type")
-	case errors.Is(err, storage.ErrEmptyFile):
-		return common.NewBadRequestError("EMPTY_FILE", "file is empty")
-	case errors.Is(err, storage.ErrInvalidPath):
-		return common.NewBadRequestError("INVALID_PATH", "invalid file path")
-	default:
-		return common.InternalError
-	}
 }

@@ -1,9 +1,13 @@
 package receipt
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"strconv"
 
 	"github.com/cadezd/expense-tracker/internal/common"
+	"github.com/cadezd/expense-tracker/internal/storage"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -27,13 +31,13 @@ func (rh *ReceiptHandler) Upload(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		_ = c.Error(common.NewBadRequestError("FILE_REQUIRED", "File is required"))
+		_ = c.Error(common.NewBadRequestError("FILE_REQUIRED", "multipart form field 'file' is required"))
 		return
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		_ = c.Error(common.NewBadRequestError("INVALID_FILE", "Could not open uploaded file"))
+		_ = c.Error(common.NewBadRequestError("INVALID_FILE", "uploaded file could not be opened"))
 		return
 	}
 	defer file.Close()
@@ -45,7 +49,7 @@ func (rh *ReceiptHandler) Upload(c *gin.Context) {
 		file,
 	)
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(mapReceiptError(err, "UPLOAD_RECEIPT_FAILED", "failed to upload receipt"))
 		return
 	}
 
@@ -61,7 +65,7 @@ func (rh *ReceiptHandler) GetByID(c *gin.Context) {
 
 	receiptID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		_ = c.Error(common.NewBadRequestError("MISSING_ID", "receipt_id filed is required"))
+		_ = c.Error(common.NewBadRequestError("INVALID_RECEIPT_ID", "receipt id must be a valid UUID"))
 		return
 	}
 
@@ -71,7 +75,7 @@ func (rh *ReceiptHandler) GetByID(c *gin.Context) {
 		receiptID,
 	)
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(mapReceiptError(err, "GET_RECEIPT_FAILED", "failed to load receipt"))
 		return
 	}
 
@@ -87,23 +91,23 @@ func (rh *ReceiptHandler) List(c *gin.Context) {
 
 	offsetStr := c.Query("offset")
 	if offsetStr == "" {
-		_ = c.Error(common.NewBadRequestError("MISSING_PARAMETER", "offset is required"))
+		_ = c.Error(common.NewBadRequestError("MISSING_OFFSET", "offset query parameter is required"))
 		return
 	}
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		_ = c.Error(common.NewBadRequestError("INVALID_VALUE", "offset must be of type int"))
+	if err != nil || offset < 0 {
+		_ = c.Error(common.NewBadRequestError("INVALID_OFFSET", "offset must be a non-negative integer"))
 		return
 	}
 
 	limitStr := c.Query("limit")
 	if limitStr == "" {
-		_ = c.Error(common.NewBadRequestError("MISSING_PARAMETER", "limit is required"))
+		_ = c.Error(common.NewBadRequestError("MISSING_LIMIT", "limit query parameter is required"))
 		return
 	}
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		_ = c.Error(common.NewBadRequestError("INVALID_VALUE", "limit must be of type int"))
+	if err != nil || limit < 1 || limit > 100 {
+		_ = c.Error(common.NewBadRequestError("INVALID_LIMIT", "limit must be an integer between 1 and 100"))
 		return
 	}
 
@@ -114,7 +118,7 @@ func (rh *ReceiptHandler) List(c *gin.Context) {
 		limit,
 	)
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(mapReceiptError(err, "LIST_RECEIPTS_FAILED", "failed to list receipts"))
 		return
 	}
 
@@ -130,7 +134,7 @@ func (rh *ReceiptHandler) Delete(c *gin.Context) {
 
 	receiptID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		_ = c.Error(common.NewBadRequestError("MISSING_ID", "receipt_id filed is required"))
+		_ = c.Error(common.NewBadRequestError("INVALID_RECEIPT_ID", "receipt id must be a valid UUID"))
 		return
 	}
 
@@ -140,7 +144,7 @@ func (rh *ReceiptHandler) Delete(c *gin.Context) {
 		receiptID,
 	)
 	if err != nil {
-		_ = c.Error(err)
+		_ = c.Error(mapReceiptError(err, "DELETE_RECEIPT_FAILED", "failed to delete receipt"))
 		return
 	}
 
@@ -163,4 +167,21 @@ func getUserID(c *gin.Context) (uuid.UUID, bool) {
 	}
 
 	return userID, true
+}
+
+func mapReceiptError(err error, fallbackCode, fallbackMessage string) error {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return common.NewAppError(http.StatusNotFound, "RECEIPT_NOT_FOUND", "receipt not found")
+	case errors.Is(err, storage.ErrFileTooLarge):
+		return common.NewAppError(http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", "uploaded file exceeds the allowed size")
+	case errors.Is(err, storage.ErrUnsupportedMIMEType):
+		return common.NewAppError(http.StatusUnsupportedMediaType, "UNSUPPORTED_MIME_TYPE", "unsupported file type")
+	case errors.Is(err, storage.ErrEmptyFile):
+		return common.NewAppError(http.StatusBadRequest, "EMPTY_FILE", "uploaded file is empty")
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return common.NewAppError(http.StatusRequestTimeout, "REQUEST_CANCELLED", "request was cancelled or timed out")
+	default:
+		return common.NewAppError(http.StatusInternalServerError, fallbackCode, fallbackMessage)
+	}
 }

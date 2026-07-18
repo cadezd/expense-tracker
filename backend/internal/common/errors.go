@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,10 @@ type AppError struct {
 }
 
 func (e *AppError) Error() string {
+	if e == nil {
+		return ""
+	}
+
 	return e.Message
 }
 
@@ -30,9 +35,8 @@ func NewInternalServerError(code, msg string) *AppError {
 }
 
 var (
-	ErrNotFound     = &AppError{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "resource not found"}
 	ErrUnauthorized = &AppError{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "authentication required"}
-	InternalError   = &AppError{Status: http.StatusInternalServerError, Code: "INTERNAL_SERVER_ERROR", Message: "unexpected error occoured"}
+	InternalError   = &AppError{Status: http.StatusInternalServerError, Code: "INTERNAL_SERVER_ERROR", Message: "unexpected error occurred"}
 )
 
 func ErrorHandler() gin.HandlerFunc {
@@ -43,7 +47,13 @@ func ErrorHandler() gin.HandlerFunc {
 			return
 		}
 
-		err := c.Errors.Last()
+		err := c.Errors.Last().Err
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
+		log.Printf("%s %s: %v", c.Request.Method, path, err)
+
 		var appErr *AppError
 		if ok := errors.As(err, &appErr); ok {
 			Fail(c, appErr.Status, appErr.Code, appErr.Message)
