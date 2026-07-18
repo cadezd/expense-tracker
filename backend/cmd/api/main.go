@@ -9,7 +9,10 @@ import (
 	"github.com/cadezd/expense-tracker/internal/config"
 	"github.com/cadezd/expense-tracker/internal/database"
 	"github.com/cadezd/expense-tracker/internal/health"
+	"github.com/cadezd/expense-tracker/internal/receipt"
+	"github.com/cadezd/expense-tracker/internal/storage"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -38,13 +41,31 @@ func run() error {
 	router.Use(common.ErrorHandler())
 
 	v1 := router.Group("/api/v1")
+	v1.Use(DevUserMiddleware(conf.TestUserID))
 	{
 		healthService := health.NewHealthService(pool)
 		healthHandler := health.NewHealthHandler(healthService)
 		v1.GET("/health/alive", healthHandler.Alive)
 		v1.GET("/health/ready", healthHandler.Ready)
+
+		receiptRepository := receipt.NewPostgresReceiptRepository(pool)
+		receiptStorage := storage.NewLocalStorage(conf.UploadDirectory, conf.MaxFileUploadSizeInBytes)
+		receiptService := receipt.NewReceiptService(receiptRepository, receiptStorage)
+		receiptHandler := receipt.NewReceiptHandler(receiptService)
+		v1.POST("/receipts", receiptHandler.Upload)
+		v1.GET("/receipts", receiptHandler.List)
+		v1.GET("/receipts/:id", receiptHandler.GetByID)
+		v1.DELETE("/receipts/:id", receiptHandler.Delete)
 	}
 
 	router.Run()
 	return nil
+}
+
+// TODO: remove when finished testing
+func DevUserMiddleware(userID uuid.UUID) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("userID", userID)
+		c.Next()
+	}
 }
