@@ -111,6 +111,14 @@ func (rs *ReceiptService) List(
 	offset int,
 	limit int,
 ) ([]*Receipt, error) {
+	if offset < 0 {
+		return nil, ErrInvalidOffset
+	}
+
+	if limit < 1 || limit > 100 {
+		return nil, ErrInvalidLimit
+	}
+
 	receipts, err := rs.repository.List(
 		ctx,
 		userID,
