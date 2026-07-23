@@ -91,8 +91,26 @@ func (ts *TransactionService) Update(ctx context.Context, userID uuid.UUID, req 
 
 }
 
-func (ts *TransactionService) List(ctx context.Context, userID uuid.UUID, offset, limit int) {
+func (ts *TransactionService) List(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*Transaction, error) {
+	if offset < 0 {
+		return nil, ErrInvalidOffset
+	}
 
+	if limit < 1 || limit > 100 {
+		return nil, ErrInvalidLimit
+	}
+
+	transactions, err := ts.transactionRepository.List(
+		ctx,
+		userID,
+		offset,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+
+	return transactions, nil
 }
 
 func (ts *TransactionService) GetByID(ctx context.Context, userID, transactionID uuid.UUID) (*Transaction, error) {
