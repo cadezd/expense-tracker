@@ -108,6 +108,16 @@ func (ts *TransactionService) GetByID(ctx context.Context, userID, transactionID
 	return transaction, nil
 }
 
-func (ts *TransactionService) Delete(ctx context.Context, userID, transactionID uuid.UUID) {
+func (ts *TransactionService) Delete(ctx context.Context, userID, transactionID uuid.UUID) error {
+	err := ts.transactionRepository.Delete(
+		ctx,
+		userID,
+		transactionID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete transaction record: %w", err)
+	}
+
+	return nil
 
 }
