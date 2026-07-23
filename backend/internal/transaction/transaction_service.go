@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
-	"time"
 
 	"github.com/cadezd/expense-tracker/internal/receipt"
 	"github.com/google/uuid"
@@ -18,7 +16,10 @@ type TransactionService struct {
 	receiptRepository     receipt.ReceiptRepository
 }
 
-func NewTransactionService(transactionRepository TransactionRepository, receiptRepository receipt.ReceiptRepository) *TransactionService {
+func NewTransactionService(
+	transactionRepository TransactionRepository,
+	receiptRepository receipt.ReceiptRepository,
+) *TransactionService {
 	return &TransactionService{
 		transactionRepository: transactionRepository,
 		receiptRepository:     receiptRepository,
@@ -34,30 +35,6 @@ func (ts *TransactionService) Create(
 		return nil, ErrEmptyRequest
 	}
 
-	normalizedType := Type(strings.TrimSpace(strings.ToLower(string(req.Type))))
-	if !slices.Contains([]Type{TypeExpense, TypeIncome}, normalizedType) {
-		return nil, ErrInvalidType
-	}
-
-	amount, err := decimal.NewFromString(strings.TrimSpace(req.Amount))
-	if err != nil {
-		return nil, ErrInvalidAmount
-	}
-
-	if amount.LessThan(decimal.NewFromInt(0)) {
-		return nil, ErrNegativeAmount
-	}
-
-	normalizedCurrency := strings.TrimSpace(strings.ToUpper(req.Currency))
-	if len(normalizedCurrency) != 3 {
-		return nil, ErrInvalidCurrency
-	}
-
-	transactionDate, err := time.Parse(time.RFC3339, strings.TrimSpace(req.TransactionDate))
-	if err != nil {
-		return nil, ErrInvalidTransactionDate
-	}
-
 	if req.ReceiptID != nil && *req.ReceiptID != uuid.Nil {
 		_, err := ts.receiptRepository.GetByID(ctx, userID, *req.ReceiptID)
 		if errors.Is(err, receipt.ErrNotFound) {
@@ -68,18 +45,30 @@ func (ts *TransactionService) Create(
 		}
 	}
 
+	if !slices.Contains([]Type{TypeExpense, TypeIncome}, req.Type) {
+		return nil, ErrInvalidType
+	}
+
+	if req.Amount.LessThan(decimal.NewFromInt(0)) {
+		return nil, ErrNegativeAmount
+	}
+
+	if len(req.Currency) != 3 {
+		return nil, ErrInvalidCurrency
+	}
+
 	transaction := &Transaction{
 		UserID:          userID,
 		ReceiptID:       req.ReceiptID,
-		Type:            normalizedType,
+		Type:            req.Type,
 		Counterparty:    req.Counterparty,
-		Amount:          amount,
-		Currency:        normalizedCurrency,
-		TransactionDate: transactionDate,
+		Amount:          req.Amount,
+		Currency:        req.Currency,
+		TransactionDate: req.TransactionDate,
 		Category:        req.Category,
 		Description:     req.Description,
 	}
-	err = ts.transactionRepository.Create(ctx, transaction)
+	err := ts.transactionRepository.Create(ctx, transaction)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -87,8 +76,169 @@ func (ts *TransactionService) Create(
 	return transaction, nil
 }
 
-func (ts *TransactionService) Update(ctx context.Context, userID uuid.UUID, req *UpdateTransactionRequest) {
+func (ts *TransactionService) Update(
+	ctx context.Context,
+	userID uuid.UUID,
+	req *UpdateTransactionRequest,
+) (*Transaction, error) {
+	if req == nil {
+		return nil, ErrEmptyRequest
+	}
 
+	if req.ID == uuid.Nil {
+		return nil, ErrInvalidTransactionID
+	}
+
+	if req.ObjectVersion < 1 {
+		return nil, ErrInvalidObjectVersion
+	}
+
+	hasUpdates := false
+
+	if req.ReceiptID.IsSet() && !req.ReceiptID.IsNull() {
+		hasUpdates = true
+		receiptID, _ := req.ReceiptID.Value()
+
+		_, err := ts.receiptRepository.GetByID(ctx, userID, receiptID)
+		if errors.Is(err, receipt.ErrNotFound) {
+			return nil, ErrReceiptOwnershipMismatch
+		}
+		if err != nil {
+			return nil, fmt.Errorf("load receipt for transaction: %w", err)
+		}
+	}
+
+	if req.Type.IsSet() {
+		hasUpdates = true
+		if req.Type.IsNull() {
+			return nil, ErrNullType
+		}
+
+		transactionType, _ := req.Type.Value()
+		if !slices.Contains([]Type{TypeExpense, TypeIncome}, transactionType) {
+			return nil, ErrInvalidType
+		}
+	}
+
+	if req.Amount.IsSet() {
+		hasUpdates = true
+		if req.Amount.IsNull() {
+			return nil, ErrNullAmount
+		}
+
+		amount, _ := req.Amount.Value()
+		if amount.LessThan(decimal.NewFromInt(0)) {
+			return nil, ErrNegativeAmount
+		}
+	}
+
+	if req.Currency.IsSet() {
+		hasUpdates = true
+		if req.Currency.IsNull() {
+			return nil, ErrNullCurrency
+		}
+
+		curreny, _ := req.Currency.Value()
+		if len(curreny) != 3 {
+			return nil, ErrInvalidCurrency
+		}
+	}
+
+	if req.Category.IsSet() {
+		hasUpdates = true
+		if req.Category.IsNull() {
+			return nil, ErrNullCategory
+		}
+	}
+
+	if req.TransactionDate.IsSet() {
+		hasUpdates = true
+		if req.TransactionDate.IsNull() {
+			return nil, ErrNullTransactionDate
+		}
+	}
+
+	if req.Counterparty.IsSet() {
+		hasUpdates = true
+	}
+
+	if req.Description.IsSet() {
+		hasUpdates = true
+	}
+
+	if !hasUpdates {
+		return nil, ErrNoFieldsToUpdate
+	}
+
+	transaction, err := ts.transactionRepository.GetByID(
+		ctx,
+		userID,
+		req.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("load transaction for update: %w", err)
+	}
+
+	if req.ReceiptID.IsSet() {
+		if req.ReceiptID.IsNull() {
+			transaction.ReceiptID = nil
+		} else {
+			receiptID, _ := req.ReceiptID.Value()
+			transaction.ReceiptID = &receiptID
+		}
+	}
+
+	if req.Type.IsSet() {
+		transactionType, _ := req.Type.Value()
+		transaction.Type = transactionType
+	}
+
+	if req.Counterparty.IsSet() {
+		if req.Counterparty.IsNull() {
+			transaction.Counterparty = nil
+		} else {
+			counterparty, _ := req.Counterparty.Value()
+			transaction.Counterparty = &counterparty
+		}
+	}
+
+	if req.Amount.IsSet() {
+		amount, _ := req.Amount.Value()
+		transaction.Amount = amount
+	}
+
+	if req.Currency.IsSet() {
+		curreny, _ := req.Currency.Value()
+		transaction.Currency = curreny
+	}
+
+	if req.TransactionDate.IsSet() {
+		transactionDate, _ := req.TransactionDate.Value()
+		transaction.TransactionDate = transactionDate
+	}
+
+	if req.Category.IsSet() {
+		category, _ := req.Category.Value()
+		transaction.Category = category
+	}
+
+	if req.Description.IsSet() {
+		if req.Description.IsNull() {
+			transaction.Description = nil
+		} else {
+			description, _ := req.Description.Value()
+			transaction.Description = &description
+		}
+	}
+
+	transaction.ObjectVersion = req.ObjectVersion
+
+	err = ts.transactionRepository.Update(ctx, transaction)
+	if err != nil {
+		return nil, fmt.Errorf("update transaction record: %w", err)
+	}
+
+	return transaction, nil
 }
 
 func (ts *TransactionService) List(ctx context.Context, userID uuid.UUID, offset, limit int) ([]*Transaction, error) {

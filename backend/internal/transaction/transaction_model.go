@@ -3,6 +3,7 @@ package transaction
 import (
 	"time"
 
+	"github.com/cadezd/expense-tracker/internal/common"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -39,23 +40,25 @@ type Transaction struct {
 // -------------------
 
 type CreateTransactionRequest struct {
-	ReceiptID       *uuid.UUID `json:"receipt_id"`
-	Type            Type       `json:"type" binding:"required"`
-	Counterparty    *string    `json:"counterparty"`
-	Amount          string     `json:"amount" binding:"required"`
-	Currency        string     `json:"currency" binding:"required,len=3"`
-	TransactionDate string     `json:"transaction_date" binding:"required"`
-	Category        string     `json:"category"`
-	Description     *string    `json:"description"`
+	ReceiptID       *uuid.UUID      `json:"receipt_id"`
+	Type            Type            `json:"type"`
+	Counterparty    *string         `json:"counterparty"`
+	Amount          decimal.Decimal `json:"amount"`
+	Currency        string          `json:"currency"`
+	TransactionDate time.Time       `json:"transaction_date"`
+	Category        string          `json:"category"`
+	Description     *string         `json:"description"`
 }
 
 type UpdateTransactionRequest struct {
-	ReceiptID       *uuid.UUID `json:"receipt_id"`
-	Type            *Type      `json:"type"`
-	Counterparty    *string    `json:"counterparty"`
-	Amount          *string    `json:"amount"`
-	Currency        *string    `json:"currency"`
-	TransactionDate *string    `json:"transaction_date"`
-	Category        *string    `json:"category"`
-	Description     *string    `json:"description"`
+	ID              uuid.UUID                        `json:"id"`
+	ReceiptID       common.Optional[uuid.UUID]       `json:"receipt_id"`
+	Type            common.Optional[Type]            `json:"type"`
+	Counterparty    common.Optional[string]          `json:"counterparty"`
+	Amount          common.Optional[decimal.Decimal] `json:"amount"`
+	Currency        common.Optional[string]          `json:"currency"`
+	TransactionDate common.Optional[time.Time]       `json:"transaction_date"`
+	Category        common.Optional[string]          `json:"category"`
+	Description     common.Optional[string]          `json:"description"`
+	ObjectVersion   int64                            `json:"object_version"`
 }
