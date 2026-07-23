@@ -10,10 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var (
-	ErrNotFound = errors.New("receipt not found")
-)
-
 type ReceiptRepository interface {
 	Create(ctx context.Context, receipt *Receipt) error
 	Update(ctx context.Context, receipt *Receipt) error
