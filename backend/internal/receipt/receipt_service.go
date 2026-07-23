@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/cadezd/expense-tracker/internal/storage"
 	"github.com/google/uuid"
@@ -80,6 +81,28 @@ func (rs *ReceiptService) GetByID(
 	}
 
 	return receipt, nil
+}
+
+func (rs *ReceiptService) GetFileByID(
+	ctx context.Context,
+	userID uuid.UUID,
+	receiptID uuid.UUID,
+) (*Receipt, io.ReadCloser, error) {
+	receipt, err := rs.repository.GetByID(ctx, userID, receiptID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get receipt file metadata: %w", err)
+	}
+
+	file, err := rs.storage.Open(ctx, receipt.StoragePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil, fmt.Errorf("open receipt file %q: %w", receipt.StoragePath, err)
+		}
+
+		return nil, nil, fmt.Errorf("open receipt file %q: %w", receipt.StoragePath, err)
+	}
+
+	return receipt, file, nil
 }
 
 func (rs *ReceiptService) List(
