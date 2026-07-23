@@ -10,4 +10,6 @@ var (
 	ErrInvalidCurrency          = errors.New("invalid transaction currency")
 	ErrInvalidTransactionDate   = errors.New("invalid transaction date")
 	ErrReceiptOwnershipMismatch = errors.New("receipt belongs to a different user")
+
+	ErrNotFound = errors.New("transaction not found")
 )
