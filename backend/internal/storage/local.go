@@ -107,23 +107,32 @@ func (ls *LocalStorage) Save(
 	}, nil
 }
 
+func (ls *LocalStorage) Open(
+	ctx context.Context,
+	relativePath string,
+) (io.ReadCloser, error) {
+	_ = ctx
+
+	absolutePath, err := ls.resolveAbsolutePath(relativePath)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(absolutePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 func (ls *LocalStorage) Delete(
 	ctx context.Context,
 	relativePath string,
 ) error {
-	cleanedPath := filepath.Clean(relativePath)
-	if filepath.IsAbs(cleanedPath) {
-		return ErrInvalidPath
-	}
-
-	absoluteBase, err := filepath.Abs(ls.baseDir)
+	absolutePath, err := ls.resolveAbsolutePath(relativePath)
 	if err != nil {
-		return fmt.Errorf("failed to resolve base dir: %w", err)
-	}
-
-	absolutePath, err := filepath.Abs(filepath.Join(absoluteBase, relativePath))
-	if err != nil {
-		return fmt.Errorf("failed toresolve file path: %w", err)
+		return err
 	}
 
 	if err := os.Remove(absolutePath); err != nil {
@@ -135,4 +144,26 @@ func (ls *LocalStorage) Delete(
 	}
 
 	return nil
+}
+
+func (ls *LocalStorage) resolveAbsolutePath(relativePath string) (string, error) {
+	cleanedPath := filepath.Clean(relativePath)
+	if cleanedPath == "." {
+		return "", ErrInvalidPath
+	}
+	if filepath.IsAbs(cleanedPath) {
+		return "", ErrInvalidPath
+	}
+
+	absoluteBase, err := filepath.Abs(ls.baseDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base dir: %w", err)
+	}
+
+	absolutePath, err := filepath.Abs(filepath.Join(absoluteBase, cleanedPath))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve file path: %w", err)
+	}
+
+	return absolutePath, nil
 }

@@ -28,6 +28,11 @@ type Storage interface {
 		reader io.Reader,
 	) (*StoredFile, error)
 
+	Open(
+		ctx context.Context,
+		relativePath string,
+	) (io.ReadCloser, error)
+
 	Delete(
 		ctx context.Context,
 		relativePath string,
