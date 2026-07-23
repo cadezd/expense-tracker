@@ -95,8 +95,17 @@ func (ts *TransactionService) List(ctx context.Context, userID uuid.UUID, offset
 
 }
 
-func (ts *TransactionService) GetByID(ctx context.Context, userID, transactionID uuid.UUID) {
+func (ts *TransactionService) GetByID(ctx context.Context, userID, transactionID uuid.UUID) (*Transaction, error) {
+	transaction, err := ts.transactionRepository.GetByID(
+		ctx,
+		userID,
+		transactionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get transaction by id: %w", err)
+	}
 
+	return transaction, nil
 }
 
 func (ts *TransactionService) Delete(ctx context.Context, userID, transactionID uuid.UUID) {
