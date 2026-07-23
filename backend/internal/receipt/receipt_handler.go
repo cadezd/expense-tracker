@@ -82,6 +82,45 @@ func (rh *ReceiptHandler) GetByID(c *gin.Context) {
 	common.Ok(c, receipt)
 }
 
+func (rh *ReceiptHandler) GetFile(c *gin.Context) {
+	userID, ok := getUserID(c)
+	if !ok {
+		_ = c.Error(common.ErrUnauthorized)
+		return
+	}
+
+	receiptID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		_ = c.Error(common.NewBadRequestError("INVALID_RECEIPT_ID", "receipt id must be a valid UUID"))
+		return
+	}
+
+	receipt, file, err := rh.service.GetFileByID(
+		c.Request.Context(),
+		userID,
+		receiptID,
+	)
+	if err != nil {
+		_ = c.Error(mapReceiptError(err, "GET_RECEIPT_FILE_FAILED", "failed to load receipt file"))
+		return
+	}
+	defer file.Close()
+
+	contentLength := int64(-1)
+	if receipt.FileSize != nil {
+		contentLength = *receipt.FileSize
+	}
+
+	c.Header("Content-Disposition", "inline")
+	c.DataFromReader(
+		http.StatusOK,
+		contentLength,
+		receipt.MimeType,
+		file,
+		nil,
+	)
+}
+
 func (rh *ReceiptHandler) List(c *gin.Context) {
 	userID, ok := getUserID(c)
 	if !ok {

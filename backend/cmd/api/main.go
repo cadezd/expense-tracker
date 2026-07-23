@@ -55,6 +55,7 @@ func run() error {
 		v1.POST("/receipts", receiptHandler.Upload)
 		v1.GET("/receipts", receiptHandler.List)
 		v1.GET("/receipts/:id", receiptHandler.GetByID)
+		v1.GET("/receipts/:id/file", receiptHandler.GetFile)
 		v1.DELETE("/receipts/:id", receiptHandler.Delete)
 	}
 
